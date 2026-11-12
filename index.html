@@ -1,2 +1,202 @@
+
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mi sitio</title><link rel="stylesheet" href="estilo.css"></head><body><nav><a href="index.html">Inicio</a> · <a href="catalogo.html">Catálogo</a> · <a href="acerca.html">Acerca</a></nav><h1>Mi primer sitio web</h1><p>Hola, soy Alan. Esta es mi página de inicio.</p></body></html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mi sitio</title>
+    <link rel="stylesheet" href="estilo.css">
+</head>
+
+<body>
+
+    <nav>
+        <a href="index.html">Inicio</a> ·
+        <a href="catalogo.html">Catálogo</a> ·
+        <a href="acerca.html">Acerca</a>
+    </nav>
+
+    <h1>Mi primer sitio web</h1>
+    <p>Hola, soy Alan. Esta es mi página de inicio.</p>
+
+    <hr>
+
+    <section id="seccion-login">
+        <h2>Autenticación de usuarios</h2>
+
+        <label for="email">Correo electrónico:</label><br>
+        <input type="email" id="email" placeholder="ejemplo@correo.com">
+        <br><br>
+
+        <label for="pass">Contraseña:</label><br>
+        <input type="password" id="pass" placeholder="Escribe tu contraseña">
+        <br><br>
+
+        <button onclick="registrar()">Crear cuenta</button>
+        <button onclick="entrar()">Iniciar sesión</button>
+
+        <p id="m1"></p>
+    </section>
+
+    <section id="seccion-app" hidden>
+        <h2>Panel de usuario</h2>
+
+        <p>Sesión iniciada como: <strong id="correo-usuario"></strong></p>
+
+        <h3>Registrar solicitud</h3>
+
+        <label for="titulo">Título:</label><br>
+        <input type="text" id="titulo" placeholder="Título de la solicitud">
+        <br><br>
+
+        <label for="monto">Monto:</label><br>
+        <input type="number" id="monto" min="0" step="0.01"
+               placeholder="Cantidad">
+        <br><br>
+
+        <button onclick="guardarSolicitud()">Guardar solicitud</button>
+        <p id="mensaje-solicitud"></p>
+
+        <button onclick="salir()">Cerrar sesión</button>
+    </section>
+
+    <!-- Librería de Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Configuración de conexión -->
+    <script src="supabase-config.js"></script>
+
+    <script>
+        function val(id) {
+            return document.getElementById(id).value.trim();
+        }
+
+        function msg(id, texto, correcto) {
+            const elemento = document.getElementById(id);
+            elemento.textContent = texto;
+            elemento.style.color = correcto ? "green" : "red";
+        }
+
+        function mostrarApp() {
+            document.getElementById('seccion-login').hidden = true;
+            document.getElementById('seccion-app').hidden = false;
+            cargarUsuario();
+        }
+
+        function mostrarLogin() {
+            document.getElementById('seccion-login').hidden = false;
+            document.getElementById('seccion-app').hidden = true;
+        }
+
+        async function cargarUsuario() {
+            const { data, error } = await supabase.auth.getUser();
+
+            if (error || !data.user) {
+                mostrarLogin();
+                return;
+            }
+
+            document.getElementById('correo-usuario').textContent =
+                data.user.email;
+        }
+
+        async function registrar() {
+            const { error } = await supabase.auth.signUp({
+                email: val('email'),
+                password: val('pass')
+            });
+
+            if (error) {
+                return msg('m1', 'Error: ' + error.message, false);
+            }
+
+            msg('m1', 'Cuenta creada. Ya puedes iniciar sesión.', true);
+        }
+
+        async function entrar() {
+            const { error } = await supabase.auth.signInWithPassword({
+                email: val('email'),
+                password: val('pass')
+            });
+
+            if (error) {
+                return msg('m1', 'Error: ' + error.message, false);
+            }
+
+            msg('m1', 'Inicio de sesión correcto.', true);
+            mostrarApp();
+        }
+
+        async function guardarSolicitud() {
+            const titulo = val('titulo');
+            const monto = Number(val('monto'));
+
+            if (!titulo || !val('monto') || !Number.isFinite(monto) || monto < 0) {
+                return msg(
+                    'mensaje-solicitud',
+                    'Completa correctamente el título y el monto.',
+                    false
+                );
+            }
+
+            const { data: { user }, error: errorUsuario } =
+                await supabase.auth.getUser();
+
+            if (errorUsuario || !user) {
+                return msg(
+                    'mensaje-solicitud',
+                    'No se encontró una sesión activa.',
+                    false
+                );
+            }
+
+            const { error } = await supabase
+                .from('solicitudes')
+                .insert({
+                    titulo: titulo,
+                    monto: monto,
+                    usuario_email: user.email
+                });
+
+            if (error) {
+                return msg(
+                    'mensaje-solicitud',
+                    'Error al guardar: ' + error.message,
+                    false
+                );
+            }
+
+            msg(
+                'mensaje-solicitud',
+                'Solicitud guardada correctamente.',
+                true
+            );
+
+            document.getElementById('titulo').value = '';
+            document.getElementById('monto').value = '';
+        }
+
+        async function salir() {
+            const { error } = await supabase.auth.signOut();
+
+            if (error) {
+                return msg('mensaje-solicitud', error.message, false);
+            }
+
+            mostrarLogin();
+            msg('m1', 'Sesión cerrada correctamente.', true);
+        }
+
+        // Revisar si existe una sesión al cargar la página
+        (async () => {
+            const { data: { session } } =
+                await supabase.auth.getSession();
+
+            if (session) {
+                mostrarApp();
+            }
+        })();
+    </script>
+
+</body>
+</html>
